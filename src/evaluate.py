@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import argparse
+from torch.serialization import safe_globals
 
 from unet import UNet
 from dataset import SegmentationDataset, get_val_transform, CAMVID_CLASSES, CAMVID_COLORS
@@ -122,16 +123,15 @@ def main():
         device = torch.device("cpu")
         print("Using CPU")
     
-    # Load model
+    # Load model with weights_only=False for compatibility
     model = UNet(in_channels=3, out_channels=len(CAMVID_CLASSES)).to(device)
-    checkpoint = torch.load(args.model_path, map_location=device)
+    checkpoint = torch.load(args.model_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f'Loaded model from epoch {checkpoint["epoch"]} with validation loss {checkpoint["val_loss"]:.4f}')
     
     # Create test dataset and loader
     test_dataset = SegmentationDataset(
-        image_dir=os.path.join(args.test_dir, 'images'),
-        mask_dir=os.path.join(args.test_dir, 'masks'),
+        split='test',
         transform=get_val_transform(args.image_size)
     )
     
@@ -139,7 +139,8 @@ def main():
         test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=4
+        num_workers=4,
+        pin_memory=True
     )
     
     # Create save directory
