@@ -1,0 +1,38 @@
+avg_dice: 0.21407314001198097
+batch_size: 8
+class_dice_scores:
+  Animal: '0.0000'
+  Archway: '0.0000'
+  Bicyclist: '0.2309'
+  Bridge: '0.0000'
+  Building: '0.7820'
+  Car: '0.6766'
+  CartLuggagePram: '0.0000'
+  Child: '0.0000'
+  Column_Pole: '0.1298'
+  Fence: '0.1857'
+  LaneMkgsDriv: '0.5729'
+  LaneMkgsNonDriv: '0.0000'
+  Misc_Text: '0.0140'
+  MotorcycleScooter: '0.0000'
+  OtherMoving: '0.0770'
+  ParkingBlock: '0.0000'
+  Pedestrian: '0.2852'
+  Road: '0.8961'
+  RoadShoulder: '0.0000'
+  SUVPickupTruck: '0.0000'
+  Sidewalk: '0.7554'
+  SignSymbol: '0.0000'
+  Sky: '0.9491'
+  TrafficCone: '0.0000'
+  TrafficLight: '0.1599'
+  Train: '0.0000'
+  Tree: '0.7116'
+  Truck_Bus: '0.0000'
+  Tunnel: '0.0000'
+  VegetationMisc: '0.0973'
+  Void: '0.0001'
+  Wall: '0.3266'
+image_size: 384
+model_path: models/unet_v2_20241217_140807/best_model.pth
+test_dir: data/test

@@ -78,20 +78,40 @@ class UNetV2(nn.Module):
 class CombinedLoss(nn.Module):
     def __init__(self, device):
         super().__init__()
-        # Class weights calculated from dataset statistics
+        # Class weights for all 32 CamVid classes
         weights = torch.FloatTensor([
-            2.0,  # Sky
+            2.0,  # Animal
+            2.0,  # Archway
+            3.0,  # Bicyclist
+            3.0,  # Bridge
             2.0,  # Building
-            3.0,  # Column-Pole
-            3.0,  # Road
-            4.0,  # Sidewalk
-            4.0,  # Tree
-            5.0,  # Sign-Symbol
-            5.0,  # Fence
-            6.0,  # Car
-            6.0,  # Pedestrian
-            7.0,  # Bicyclist
-            1.0   # Void
+            4.0,  # Car
+            4.0,  # CartLuggagePram
+            4.0,  # Child
+            3.0,  # Column_Pole
+            3.0,  # Fence
+            2.0,  # LaneMkgsDriv
+            2.0,  # LaneMkgsNonDriv
+            2.0,  # Misc_Text
+            4.0,  # MotorcycleScooter
+            3.0,  # OtherMoving
+            2.0,  # ParkingBlock
+            4.0,  # Pedestrian
+            2.0,  # Road
+            2.0,  # RoadShoulder
+            3.0,  # Sidewalk
+            3.0,  # SignSymbol
+            1.0,  # Sky
+            4.0,  # SUVPickupTruck
+            3.0,  # TrafficCone
+            3.0,  # TrafficLight
+            4.0,  # Train
+            2.0,  # Tree
+            4.0,  # Truck_Bus
+            3.0,  # Tunnel
+            2.0,  # VegetationMisc
+            1.0,  # Void
+            2.0,  # Wall
         ]).to(device)
         self.ce_loss = nn.CrossEntropyLoss(weight=weights)
         

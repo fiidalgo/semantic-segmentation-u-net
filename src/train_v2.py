@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+import torch.nn.functional as F
 
 from unet_v2 import UNetV2, get_loss_function
 from dataset import SegmentationDataset, CAMVID_CLASSES
@@ -34,10 +35,50 @@ def get_val_transform(size):
         ToTensorV2(),
     ])
 
+def calculate_dice_score(pred, target):
+    """Calculate Dice score"""
+    pred = F.softmax(pred, dim=1)
+    pred = torch.argmax(pred, dim=1)
+    intersection = torch.sum(pred == target)
+    union = torch.sum(pred) + torch.sum(target)
+    dice = (2.0 * intersection + 1e-5) / (union + 1e-5)
+    return dice.item()
+
+def plot_progress(train_losses, val_losses, train_dice, val_dice, save_dir):
+    """Plot training progress"""
+    plt.figure(figsize=(15, 5))
+    
+    # Loss plot
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.title('Loss vs. Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    
+    # Dice score plot
+    plt.subplot(1, 2, 2)
+    plt.plot(train_dice, label='Training Dice')
+    plt.plot(val_dice, label='Validation Dice')
+    plt.title('Dice Score vs. Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Dice Score')
+    plt.legend()
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'training_progress.png'))
+    plt.close()
+
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs, device, save_dir):
     best_val_loss = float('inf')
     train_losses = []
     val_losses = []
+    train_dice_scores = []
+    val_dice_scores = []
+    current_lr = optimizer.param_groups[0]['lr']
     
     # Create save directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -46,6 +87,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         # Training phase
         model.train()
         train_loss = 0
+        train_dice = 0
         train_bar = tqdm(train_loader, desc=f'Training Epoch {epoch}')
         
         for images, masks in train_bar:
@@ -58,21 +100,30 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             # Forward pass
             outputs = model(images)
             loss = criterion(outputs, masks)
+            dice = calculate_dice_score(outputs, masks)
             
             # Backward pass and optimize
             loss.backward()
             optimizer.step()
             
-            # Update progress bar
+            # Update metrics
             train_loss += loss.item()
-            train_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+            train_dice += dice
+            train_bar.set_postfix({
+                'loss': f'{loss.item():.4f}',
+                'dice': f'{dice:.4f}',
+                'lr': f'{current_lr:.2e}'
+            })
         
         train_loss /= len(train_loader)
+        train_dice /= len(train_loader)
         train_losses.append(train_loss)
+        train_dice_scores.append(train_dice)
         
         # Validation phase
         model.eval()
         val_loss = 0
+        val_dice = 0
         val_bar = tqdm(val_loader, desc=f'Validation Epoch {epoch}')
         
         with torch.no_grad():
@@ -82,15 +133,23 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 
                 outputs = model(images)
                 loss = criterion(outputs, masks)
+                dice = calculate_dice_score(outputs, masks)
                 
                 val_loss += loss.item()
-                val_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+                val_dice += dice
+                val_bar.set_postfix({
+                    'loss': f'{loss.item():.4f}',
+                    'dice': f'{dice:.4f}'
+                })
         
         val_loss /= len(val_loader)
+        val_dice /= len(val_loader)
         val_losses.append(val_loss)
+        val_dice_scores.append(val_dice)
         
         # Learning rate scheduling
         scheduler.step(val_loss)
+        current_lr = optimizer.param_groups[0]['lr']
         
         # Save best model
         if val_loss < best_val_loss:
@@ -102,20 +161,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 'scheduler_state_dict': scheduler.state_dict(),
                 'train_loss': train_loss,
                 'val_loss': val_loss,
+                'train_dice': train_dice,
+                'val_dice': val_dice,
             }, os.path.join(save_dir, 'best_model.pth'))
         
-        # Plot and save learning curves
-        plt.figure(figsize=(10, 5))
-        plt.plot(train_losses, label='Training Loss')
-        plt.plot(val_losses, label='Validation Loss')
-        plt.title('Learning Curves')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.savefig(os.path.join(save_dir, 'learning_curves.png'))
-        plt.close()
+        # Plot and save progress
+        plot_progress(train_losses, val_losses, train_dice_scores, val_dice_scores, save_dir)
         
-        print(f'Epoch {epoch}: Train Loss = {train_loss:.4f}, Val Loss = {val_loss:.4f}')
+        print(f'Epoch {epoch}: Train Loss = {train_loss:.4f}, Val Loss = {val_loss:.4f}, '
+              f'Train Dice = {train_dice:.4f}, Val Dice = {val_dice:.4f}, LR = {current_lr:.2e}')
 
 def main():
     # Set device
@@ -135,8 +189,8 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     
     # Model parameters
-    IMAGE_SIZE = 512  # Increased from 256
-    BATCH_SIZE = 16
+    IMAGE_SIZE = 384  # Reduced from 512 for faster training
+    BATCH_SIZE = 8    # Reduced from 16 to avoid memory issues
     NUM_EPOCHS = 100
     LEARNING_RATE = 3e-4
     
